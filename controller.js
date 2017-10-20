@@ -297,6 +297,7 @@ function createObjects() {
                     if (!isStopping) {
                         // Do not start if we still stopping the instances
                         checkHost(type, function () {
+                            startMultihost(config);
                             setMeta();
                             started = true;
                             getInstances();
@@ -1433,6 +1434,15 @@ function processMessage(msg) {
                 }
             })();
             break;
+
+        case 'updateMultihost':
+            (function () {
+                var result = startMultihost();
+                if (msg.callback) {
+                    sendTo(msg.from, msg.command, {result: result}, msg.callback);
+                }
+            })();
+            break;
     }
 }
 
@@ -1867,7 +1877,19 @@ function startInstance(id, wakeUp) {
             if (procs[id] && !procs[id].process) {
                 allInstancesStopped = false;
                 logger.debug('host.' + hostname + ' startInstance ' + name + '.' + args[0] + ' loglevel=' + args[1]);
-                procs[id].process = cp.fork(fileNameFull, args);
+                procs[id].process = cp.fork(fileNameFull, args, {stdio: 'pipe', silent: true});
+
+                // catch error output
+                procs[id].process.stderr.on('data', function (data) {
+                    var text = data.toString();
+                    // show for debug
+                    console.error(text);
+                    procs[id].errors = procs[id].errors || [];
+                    var now = new Date().getTime();
+                    procs[id].errors.push({ts: now, text: text});
+                    cleanErrors(id, now);
+                });
+
                 storePids(); // Store all pids to make possible kill them all
 
                 procs[id].process.on('exit', function (code, signal) {
@@ -1881,6 +1903,9 @@ function startInstance(id, wakeUp) {
                         outputCount++;
                         states.setState(id + '.logging', {val: false, ack: true, from: 'system.host.' + hostname});
                     }
+
+                    // show stored errors
+                    cleanErrors(id, null, code !== 4294967196);
 
                     if (mode !== 'once') {
                         if (signal) {

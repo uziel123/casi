@@ -297,6 +297,7 @@ function createObjects() {
                     if (!isStopping) {
                         // Do not start if we still stopping the instances
                         checkHost(type, function () {
+                            startMultihost(config);
                             setMeta();
                             started = true;
                             getInstances();
@@ -1433,6 +1434,15 @@ function processMessage(msg) {
                 }
             })();
             break;
+
+        case 'updateMultihost':
+            (function () {
+                var result = startMultihost();
+                if (msg.callback) {
+                    sendTo(msg.from, msg.command, {result: result}, msg.callback);
+                }
+            })();
+            break;
     }
 }
 
@@ -1742,7 +1752,7 @@ function cleanErrors(id, now, doOutput) {
     // output of errors into log
     if (doOutput) {
         for (var i = 0; i < procs[id].errors.length; i++) {
-            if (now - procs[id].errors[i].ts < 30000) {
+            if (procs[id].errors[i] && now - procs[id].errors[i].ts < 30000) {
                 var lines = procs[id].errors[i].text.replace('\x1B[31merror\x1B[39m:', '').replace('\x1B[34mdebug\x1B[39m:', '').split('\n');
                 for (var k = 0; k < lines.length; k++) {
                     if (lines[k]) {
@@ -1867,7 +1877,7 @@ function startInstance(id, wakeUp) {
             if (procs[id] && !procs[id].process) {
                 allInstancesStopped = false;
                 logger.debug('host.' + hostname + ' startInstance ' + name + '.' + args[0] + ' loglevel=' + args[1]);
-                procs[id].process = cp.fork(fileNameFull, args);
+                procs[id].process = cp.fork(fileNameFull, args, {stdio: 'pipe', silent: true});
                 storePids(); // Store all pids to make possible kill them all
 
                 procs[id].process.on('exit', function (code, signal) {
@@ -1881,6 +1891,9 @@ function startInstance(id, wakeUp) {
                         outputCount++;
                         states.setState(id + '.logging', {val: false, ack: true, from: 'system.host.' + hostname});
                     }
+
+                    // show stored errors
+                    cleanErrors(id, null, code !== 4294967196);
 
                     if (mode !== 'once') {
                         if (signal) {

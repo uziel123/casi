@@ -297,7 +297,7 @@ function createObjects() {
                     if (!isStopping) {
                         // Do not start if we still stopping the instances
                         checkHost(type, function () {
-                            startMultihost(config);
+                            // startMultihost(config);
                             setMeta();
                             started = true;
                             getInstances();

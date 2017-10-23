@@ -1877,7 +1877,7 @@ function startInstance(id, wakeUp) {
             if (procs[id] && !procs[id].process) {
                 allInstancesStopped = false;
                 logger.debug('host.' + hostname + ' startInstance ' + name + '.' + args[0] + ' loglevel=' + args[1]);
-                procs[id].process = cp.fork(fileNameFull, args, {stdio: 'pipe', silent: true});
+                procs[id].process = cp.fork(fileNameFull, args);//, {stdio: 'pipe', silent: true});
                 storePids(); // Store all pids to make possible kill them all
 
                 procs[id].process.on('exit', function (code, signal) {
